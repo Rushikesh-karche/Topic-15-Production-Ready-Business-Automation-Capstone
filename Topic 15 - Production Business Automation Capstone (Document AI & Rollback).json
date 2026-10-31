@@ -139,7 +139,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const emp = $('Transform_ParseContractText').item.json.employee;\\nconst isEngineer = emp.department === 'Engineering';\\nconst bundle = isEngineer ? [\\n  { assetType: 'MacBook Pro M3 Max 64GB', category: 'Laptop', priority: 'URGENT' },\\n  { assetType: '4K Dual Display Monitors', category: 'Peripherals', priority: 'STANDARD' },\\n  { assetType: 'YubiKey 5C FIPS Security Key', category: 'Security', priority: 'CRITICAL' }\\n] : [\\n  { assetType: 'ThinkPad T14s 32GB', category: 'Laptop', priority: 'STANDARD' }\\n];\\n\\nreturn {\\n  json: {\\n    employeeName: emp.name,\\n    email: emp.email,\\n    department: emp.department,\\n    hardwareUnits: bundle\\n  }\\n};"
+        "jsCode": "const emp = $('Transform_ParseContractText').item.json.employee;\nconst isEngineer = emp.department === 'Engineering';\nconst bundle = isEngineer ? [\n  { assetType: 'MacBook Pro M3 Max 64GB', category: 'Laptop', priority: 'URGENT' },\n  { assetType: '4K Dual Display Monitors', category: 'Peripherals', priority: 'STANDARD' },\n  { assetType: 'YubiKey 5C FIPS Security Key', category: 'Security', priority: 'CRITICAL' }\n] : [\n  { assetType: 'ThinkPad T14s 32GB', category: 'Laptop', priority: 'STANDARD' }\n];\n\n// Unroll bundle into separate n8n items for the loop\nreturn bundle.map(item => ({\n  json: {\n    ...item,\n    employeeName: emp.name,\n    recipient: emp.email,\n    department: emp.department\n  }\n}));"
       },
       "id": "node-transform-hardware",
       "name": "Transform_DetermineHardwareBundle",
@@ -349,14 +349,14 @@
       "main": [
         [
           {
-            "node": "HTTP_CreateAssetTicket",
+            "node": "HTTP_PostSlackWelcome",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "HTTP_PostSlackWelcome",
+            "node": "HTTP_CreateAssetTicket",
             "type": "main",
             "index": 0
           }
@@ -507,49 +507,32 @@
     "Transform_DetermineHardwareBundle": [
       {
         "json": {
-          "employeeName": "Dr. Alexander Vance",
-          "email": "alexander.vance@enterprise-labs.io",
-          "department": "Engineering",
-          "hardwareUnits": [
-            {
-              "assetType": "MacBook Pro M3 Max 64GB",
-              "category": "Laptop",
-              "priority": "URGENT"
-            },
-            {
-              "assetType": "4K Dual Display Monitors",
-              "category": "Peripherals",
-              "priority": "STANDARD"
-            },
-            {
-              "assetType": "YubiKey 5C FIPS Security Key",
-              "category": "Security",
-              "priority": "CRITICAL"
-            }
-          ]
-        }
-      }
-    ],
-    "Item_Lists_BatchHardware": [
-      {
-        "json": {
           "assetType": "MacBook Pro M3 Max 64GB",
           "category": "Laptop",
-          "priority": "URGENT"
+          "priority": "URGENT",
+          "employeeName": "Dr. Alexander Vance",
+          "recipient": "alexander.vance@enterprise-labs.io",
+          "department": "Engineering"
         }
       },
       {
         "json": {
           "assetType": "4K Dual Display Monitors",
           "category": "Peripherals",
-          "priority": "STANDARD"
+          "priority": "STANDARD",
+          "employeeName": "Dr. Alexander Vance",
+          "recipient": "alexander.vance@enterprise-labs.io",
+          "department": "Engineering"
         }
       },
       {
         "json": {
           "assetType": "YubiKey 5C FIPS Security Key",
           "category": "Security",
-          "priority": "CRITICAL"
+          "priority": "CRITICAL",
+          "employeeName": "Dr. Alexander Vance",
+          "recipient": "alexander.vance@enterprise-labs.io",
+          "department": "Engineering"
         }
       }
     ],
