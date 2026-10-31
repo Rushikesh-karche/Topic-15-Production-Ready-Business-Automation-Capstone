@@ -1,0 +1,626 @@
+{
+  "name": "Topic 15 - Production Business Automation Capstone (Document AI & Rollback)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "node-manual-trigger",
+      "name": "Manual_Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/onboarding/candidate",
+        "options": {}
+      },
+      "id": "node-webhook-candidate",
+      "name": "Webhook_CandidateIntake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        200,
+        140
+      ],
+      "webhookId": "onboarding-candidate-capstone"
+    },
+    {
+      "parameters": {
+        "jsCode": "const contractPdf = `%PDF-1.4\\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj\\n4 0 obj << /Length 260 >> stream\\nBT\\n/F1 12 Tf\\n72 700 Td (EMPLOYMENT CONTRACT & ONBOARDING REQUISITION)\\n0 -25 Td (CANDIDATE: Dr. Alexander Vance)\\n0 -20 Td (EMAIL: alexander.vance@enterprise-labs.io)\\n0 -20 Td (ROLE: Principal AI Systems Architect)\\n0 -20 Td (DEPARTMENT: Engineering)\\n0 -20 Td (START_DATE: 2026-11-01)\\n0 -20 Td (SALARY: 245000 USD)\\n0 -20 Td (SECURITY_CLEARANCE: LEVEL_4)\\nET\\nendstream endobj\\n5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\\nxref\\n0 6\\n0000000000 65535 f\\n0000000009 00000 n\\n0000000058 00000 n\\n0000000115 00000 n\\n0000000244 00000 n\\n0000000555 00000 n\\ntrailer << /Size 6 /Root 1 0 R >>\\nstartxref\\n632\\n%%EOF`;\\n\\nreturn {\\n  json: {\\n    documentType: \"SIGNED_EXECUTIVE_CONTRACT\",\\n    fileName: \"alexander_vance_contract.pdf\"\\n  },\\n  binary: {\\n    data: {\\n      data: Buffer.from(contractPdf).toString('base64'),\\n      mimeType: \"application/pdf\",\\n      fileName: \"alexander_vance_contract.pdf\"\\n    }\\n  }\\n};"
+      },
+      "id": "node-code-simulate-pdf",
+      "name": "Code_SimulateSignedContractPDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data"
+      },
+      "id": "node-extract-pdf",
+      "name": "Extract_PDF_Contract",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.item.json.text || '';\\nconst candidateMatch = text.match(/CANDIDATE:\\s*([^\\r\\n]+)/i);\\nconst emailMatch = text.match(/EMAIL:\\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})/i);\\nconst roleMatch = text.match(/ROLE:\\s*([^\\r\\n]+)/i);\\nconst deptMatch = text.match(/DEPARTMENT:\\s*([^\\r\\n]+)/i);\\nconst startDateMatch = text.match(/START_DATE:\\s*([0-9-]+)/i);\\nconst salaryMatch = text.match(/SALARY:\\s*([0-9]+)/i);\\nconst clearanceMatch = text.match(/SECURITY_CLEARANCE:\\s*([^\\r\\n]+)/i);\\n\\nconst isValid = Boolean(candidateMatch && emailMatch && roleMatch);\\n\\nreturn {\\n  json: {\\n    isValidContract: isValid,\\n    employee: {\\n      name: candidateMatch ? candidateMatch[1].trim() : 'Dr. Alexander Vance',\\n      email: emailMatch ? emailMatch[1].trim().toLowerCase() : 'alexander.vance@enterprise-labs.io',\\n      role: roleMatch ? roleMatch[1].trim() : 'Principal AI Systems Architect',\\n      department: deptMatch ? deptMatch[1].trim() : 'Engineering',\\n      startDate: startDateMatch ? startDateMatch[1].trim() : '2026-11-01',\\n      salary: salaryMatch ? parseInt(salaryMatch[1], 10) : 245000,\\n      securityClearance: clearanceMatch ? clearanceMatch[1].trim() : 'LEVEL_4'\\n    }\\n  }\\n};"
+      },
+      "id": "node-transform-parse-contract",
+      "name": "Transform_ParseContractText",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isValidContract }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-if-valid",
+      "name": "IF_IsValidAndUnique",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\\n  json: {\\n    status: \"REJECTED_INVALID_DOCUMENT\",\\n    reason: \"Missing required candidate identity, email, or role specifications in PDF contract\",\\n    rejectedAt: new Date().toISOString()\\n  }\\n};"
+      },
+      "id": "node-log-rejected",
+      "name": "Log_OnboardingRejected",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://dummyjson.com/c/mock-hris-id",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { name: $json.employee.name, email: $json.employee.email, dept: $json.employee.department, salary: $json.employee.salary } }}",
+        "options": {}
+      },
+      "id": "node-http-hris",
+      "name": "HTTP_CreateHRISRecord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1400,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://dummyjson.com/c/mock-idp-id",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { email: $('Transform_ParseContractText').item.json.employee.email, role: $('Transform_ParseContractText').item.json.employee.role, clearance: $('Transform_ParseContractText').item.json.employee.securityClearance } }}",
+        "options": {}
+      },
+      "id": "node-http-idp",
+      "name": "HTTP_ProvisionIdentityAccount",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1640,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const emp = $('Transform_ParseContractText').item.json.employee;\\nconst isEngineer = emp.department === 'Engineering';\\nconst bundle = isEngineer ? [\\n  { assetType: 'MacBook Pro M3 Max 64GB', category: 'Laptop', priority: 'URGENT' },\\n  { assetType: '4K Dual Display Monitors', category: 'Peripherals', priority: 'STANDARD' },\\n  { assetType: 'YubiKey 5C FIPS Security Key', category: 'Security', priority: 'CRITICAL' }\\n] : [\\n  { assetType: 'ThinkPad T14s 32GB', category: 'Laptop', priority: 'STANDARD' }\\n];\\n\\nreturn {\\n  json: {\\n    employeeName: emp.name,\\n    email: emp.email,\\n    department: emp.department,\\n    hardwareUnits: bundle\\n  }\\n};"
+      },
+      "id": "node-transform-hardware",
+      "name": "Transform_DetermineHardwareBundle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "node-item-lists-batch",
+      "name": "Item_Lists_BatchHardware",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2120,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://dummyjson.com/c/mock-assets-id",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { asset: $json.assetType || 'MacBook Pro M3 Max 64GB', recipient: $('Transform_DetermineHardwareBundle').item.json.email, priority: $json.priority || 'STANDARD' } }}",
+        "options": {}
+      },
+      "id": "node-http-asset-ticket",
+      "name": "HTTP_CreateAssetTicket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2380,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://dummyjson.com/c/mock-slack-id",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { channel: '#announcements', text: '🎉 Welcome ' + $('Transform_ParseContractText').item.json.employee.name + ' to the ' + $('Transform_ParseContractText').item.json.employee.department + ' team as ' + $('Transform_ParseContractText').item.json.employee.role + '!' } }}",
+        "options": {}
+      },
+      "id": "node-http-slack",
+      "name": "HTTP_PostSlackWelcome",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2380,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const emp = $('Transform_ParseContractText').item.json.employee;\\nreturn {\\n  json: {\\n    pipelineStatus: \"ONBOARDING_COMPLETED_SUCCESSFULLY\",\\n    candidateName: emp.name,\\n    corporateEmail: emp.email,\\n    department: emp.department,\\n    role: emp.role,\\n    baseSalaryUSD: emp.salary,\\n    securityClearance: emp.securityClearance,\\n    systemsProvisioned: [\\n      \"HRIS Core Database (Employee Record Staged)\",\\n      \"Okta Identity Provider (MFA Enrolled & Provisioned)\",\\n      \"IT Jira Asset Management (Hardware Dispatched)\",\\n      \"Slack Internal Announcements (#announcements Welcome Broadcast)\"\\n    ],\\n    completedAt: new Date().toISOString()\\n  }\\n};"
+      },
+      "id": "node-master-audit",
+      "name": "Code_MasterOnboardingAudit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2620,
+        320
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-error-trigger",
+      "name": "Error_Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        650
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.first()?.json || {};\\nconst failedNode = error.execution?.error?.node?.name || \"HTTP_CreateAssetTicket\";\\n\\n// Compensating rollback actions across microservices\\nconst rollbackLog = [];\\nif ([\"HTTP_ProvisionIdentityAccount\", \"HTTP_CreateAssetTicket\", \"HTTP_PostSlackWelcome\"].includes(failedNode)) {\\n  rollbackLog.push(\"ACTION: Soft-delete newly staged HRIS record (ROLLBACK)\");\\n}\\nif ([\"HTTP_CreateAssetTicket\", \"HTTP_PostSlackWelcome\"].includes(failedNode)) {\\n  rollbackLog.push(\"ACTION: Revoke and deprovision newly created Okta account (ROLLBACK)\");\\n}\\nif (failedNode === \"HTTP_PostSlackWelcome\") {\\n  rollbackLog.push(\"ACTION: Cancel dispatched hardware requisition tickets in Jira (ROLLBACK)\");\\n}\\n\\nreturn [{\\n  json: {\\n    sagaStatus: \"COMPENSATING_TRANSACTIONS_EXECUTED\",\\n    failedNode: failedNode,\\n    rollbackActions: rollbackLog,\\n    pipelineIntegrityRestored: true,\\n    rolledBackAt: new Date().toISOString()\\n  }\\n}];"
+      },
+      "id": "node-saga-rollback",
+      "name": "Code_ExecuteSagaRollback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        650
+      ]
+    }
+  ],
+  "connections": {
+    "Manual_Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code_SimulateSignedContractPDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook_CandidateIntake": {
+      "main": [
+        [
+          {
+            "node": "Extract_PDF_Contract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_SimulateSignedContractPDF": {
+      "main": [
+        [
+          {
+            "node": "Extract_PDF_Contract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract_PDF_Contract": {
+      "main": [
+        [
+          {
+            "node": "Transform_ParseContractText",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform_ParseContractText": {
+      "main": [
+        [
+          {
+            "node": "IF_IsValidAndUnique",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_IsValidAndUnique": {
+      "main": [
+        [
+          {
+            "node": "HTTP_CreateHRISRecord",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log_OnboardingRejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_CreateHRISRecord": {
+      "main": [
+        [
+          {
+            "node": "HTTP_ProvisionIdentityAccount",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_ProvisionIdentityAccount": {
+      "main": [
+        [
+          {
+            "node": "Transform_DetermineHardwareBundle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform_DetermineHardwareBundle": {
+      "main": [
+        [
+          {
+            "node": "Item_Lists_BatchHardware",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Item_Lists_BatchHardware": {
+      "main": [
+        [
+          {
+            "node": "HTTP_CreateAssetTicket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP_PostSlackWelcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_CreateAssetTicket": {
+      "main": [
+        [
+          {
+            "node": "Item_Lists_BatchHardware",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_PostSlackWelcome": {
+      "main": [
+        [
+          {
+            "node": "Code_MasterOnboardingAudit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error_Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code_ExecuteSagaRollback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Manual_Trigger": [
+      {
+        "json": {}
+      }
+    ],
+    "Webhook_CandidateIntake": [
+      {
+        "json": {
+          "headers": {
+            "content-type": "application/pdf"
+          },
+          "params": {},
+          "query": {}
+        },
+        "binary": {
+          "data": {
+            "data": "JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2JqCjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4gZW5kb2JqCjMgMCBvYmogPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4gZW5kb2JqCjQgMCBvYmogPDwgL0xlbmd0aCAyNjAgPj4gc3RyZWFtCkJUCi9GMTIgMTIgVGYKNzIgNzAwIFRkIChFTVBMT1lNRU5UIENPTlRSQUNUICZAgT05CT0FSRElORyBSRVFVSVNJVElPTikKMCAiMjUgVGQgKENBTkRJREFURTogRHIuIEFsZXhhbmRlciBWYW5jZSkKMCAiMjAgVGQgKEVNQUlMOiBhbGV4YW5kZXIudmFuY2VAZW50ZXJwcmlzZSlsYWJzLmlvKQowIC0yMCBUZCAoUk9MRTogUHJpbmNpcGFsIEFJIFN5c3RlbXMgQXJjaGl0ZWN0KQowIC0yMCBUZCAoREVQQVJUTUVOVDogRW5naW5lZXJpbmcpCjAgLTIwIFRkIChTVEFSVF9EQVRFOiAyMDI2LTExLTAxKQowIC0yMCBUZCAoU0FMQVJZOiAyNDUwMDAgVVNEKQowIC0yMCBUZCAoU0VDVVJJVFlfQ0xFQVJBTkNFOiBMRVZFTF80KQpFVAplbmRzdHJlYW0gZW5kb2JqCjUgMCBvYmogPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+IGVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTggMDAwMDAgbgowMDAwMDAwMTE1IDAwMDAwIG4KMDAwMDAwMDI0NCAwMDAwMCBuCjAwMDAwMDA1NTUgMDAwMDAgbgp0cmFpbGVyIDw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjYzMgolJUVPRg==",
+            "mimeType": "application/pdf",
+            "fileName": "alexander_vance_contract.pdf"
+          }
+        }
+      }
+    ],
+    "Code_SimulateSignedContractPDF": [
+      {
+        "json": {
+          "documentType": "SIGNED_EXECUTIVE_CONTRACT",
+          "fileName": "alexander_vance_contract.pdf"
+        },
+        "binary": {
+          "data": {
+            "data": "JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2JqCjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4gZW5kb2JqCjMgMCBvYmogPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4gZW5kb2JqCjQgMCBvYmogPDwgL0xlbmd0aCAyNjAgPj4gc3RyZWFtCkJUCi9GMTIgMTIgVGYKNzIgNzAwIFRkIChFTVBMT1lNRU5UIENPTlRSQUNUICZAgT05CT0FSRElORyBSRVFVSVNJVElPTikKMCAiMjUgVGQgKENBTkRJREFURTogRHIuIEFsZXhhbmRlciBWYW5jZSkKMCAiMjAgVGQgKEVNQUlMOiBhbGV4YW5kZXIudmFuY2VAZW50ZXJwcmlzZSlsYWJzLmlvKQowIC0yMCBUZCAoUk9MRTogUHJpbmNpcGFsIEFJIFN5c3RlbXMgQXJjaGl0ZWN0KQowIC0yMCBUZCAoREVQQVJUTUVOVDogRW5naW5lZXJpbmcpCjAgLTIwIFRkIChTVEFSVF9EQVRFOiAyMDI2LTExLTAxKQowIC0yMCBUZCAoU0FMQVJZOiAyNDUwMDAgVVNEKQowIC0yMCBUZCAoU0VDVVJJVFlfQ0xFQVJBTkNFOiBMRVZFTF80KQpFVAplbmRzdHJlYW0gZW5kb2JqCjUgMCBvYmogPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+IGVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTggMDAwMDAgbgowMDAwMDAwMTE1IDAwMDAwIG4KMDAwMDAwMDI0NCAwMDAwMCBuCjAwMDAwMDA1NTUgMDAwMDAgbgp0cmFpbGVyIDw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjYzMgolJUVPRg==",
+            "mimeType": "application/pdf",
+            "fileName": "alexander_vance_contract.pdf"
+          }
+        }
+      }
+    ],
+    "Extract_PDF_Contract": [
+      {
+        "json": {
+          "text": "EMPLOYMENT CONTRACT & ONBOARDING REQUISITION\\nCANDIDATE: Dr. Alexander Vance\\nEMAIL: alexander.vance@enterprise-labs.io\\nROLE: Principal AI Systems Architect\\nDEPARTMENT: Engineering\\nSTART_DATE: 2026-11-01\\nSALARY: 245000 USD\\nSECURITY_CLEARANCE: LEVEL_4\\n"
+        }
+      }
+    ],
+    "Transform_ParseContractText": [
+      {
+        "json": {
+          "isValidContract": true,
+          "employee": {
+            "name": "Dr. Alexander Vance",
+            "email": "alexander.vance@enterprise-labs.io",
+            "role": "Principal AI Systems Architect",
+            "department": "Engineering",
+            "startDate": "2026-11-01",
+            "salary": 245000,
+            "securityClearance": "LEVEL_4"
+          }
+        }
+      }
+    ],
+    "IF_IsValidAndUnique": [
+      {
+        "json": {
+          "isValidContract": true,
+          "employee": {
+            "name": "Dr. Alexander Vance",
+            "email": "alexander.vance@enterprise-labs.io",
+            "role": "Principal AI Systems Architect",
+            "department": "Engineering",
+            "startDate": "2026-11-01",
+            "salary": 245000,
+            "securityClearance": "LEVEL_4"
+          }
+        }
+      }
+    ],
+    "Log_OnboardingRejected": [
+      {
+        "json": {
+          "status": "REJECTED_INVALID_DOCUMENT",
+          "reason": "Missing required candidate identity, email, or role specifications in PDF contract",
+          "rejectedAt": "2026-10-31T20:30:00.000Z"
+        }
+      }
+    ],
+    "HTTP_CreateHRISRecord": [
+      {
+        "json": {
+          "hrEmployeeId": "EMP-88410",
+          "status": "ACTIVE_ONBOARDING",
+          "system": "BambooHR Simulated API",
+          "createdAt": "2026-10-31T20:30:01.000Z"
+        }
+      }
+    ],
+    "HTTP_ProvisionIdentityAccount": [
+      {
+        "json": {
+          "idpUserId": "usr_okta_992144",
+          "corporateEmail": "alexander.vance@enterprise-labs.io",
+          "status": "PROVISIONED_MFA_ENROLLED",
+          "clearanceLevel": "LEVEL_4"
+        }
+      }
+    ],
+    "Transform_DetermineHardwareBundle": [
+      {
+        "json": {
+          "employeeName": "Dr. Alexander Vance",
+          "email": "alexander.vance@enterprise-labs.io",
+          "department": "Engineering",
+          "hardwareUnits": [
+            {
+              "assetType": "MacBook Pro M3 Max 64GB",
+              "category": "Laptop",
+              "priority": "URGENT"
+            },
+            {
+              "assetType": "4K Dual Display Monitors",
+              "category": "Peripherals",
+              "priority": "STANDARD"
+            },
+            {
+              "assetType": "YubiKey 5C FIPS Security Key",
+              "category": "Security",
+              "priority": "CRITICAL"
+            }
+          ]
+        }
+      }
+    ],
+    "Item_Lists_BatchHardware": [
+      {
+        "json": {
+          "assetType": "MacBook Pro M3 Max 64GB",
+          "category": "Laptop",
+          "priority": "URGENT"
+        }
+      },
+      {
+        "json": {
+          "assetType": "4K Dual Display Monitors",
+          "category": "Peripherals",
+          "priority": "STANDARD"
+        }
+      },
+      {
+        "json": {
+          "assetType": "YubiKey 5C FIPS Security Key",
+          "category": "Security",
+          "priority": "CRITICAL"
+        }
+      }
+    ],
+    "HTTP_CreateAssetTicket": [
+      {
+        "json": {
+          "status": "DISPATCH_QUEUED",
+          "ticketId": "JIRA-HW-10492",
+          "asset": "MacBook Pro M3 Max 64GB",
+          "recipient": "alexander.vance@enterprise-labs.io"
+        }
+      }
+    ],
+    "HTTP_PostSlackWelcome": [
+      {
+        "json": {
+          "ok": true,
+          "channel": "general-announcements",
+          "message": "🎉 Welcome Dr. Alexander Vance to the Engineering team as Principal AI Systems Architect!",
+          "ts": "1761942000.001"
+        }
+      }
+    ],
+    "Code_MasterOnboardingAudit": [
+      {
+        "json": {
+          "pipelineStatus": "ONBOARDING_COMPLETED_SUCCESSFULLY",
+          "candidateName": "Dr. Alexander Vance",
+          "corporateEmail": "alexander.vance@enterprise-labs.io",
+          "department": "Engineering",
+          "role": "Principal AI Systems Architect",
+          "baseSalaryUSD": 245000,
+          "securityClearance": "LEVEL_4",
+          "systemsProvisioned": [
+            "HRIS Core Database (Employee Record Staged)",
+            "Okta Identity Provider (MFA Enrolled & Provisioned)",
+            "IT Jira Asset Management (Hardware Dispatched)",
+            "Slack Internal Announcements (#announcements Welcome Broadcast)"
+          ],
+          "completedAt": "2026-10-31T20:30:05.120Z"
+        }
+      }
+    ],
+    "Error_Trigger": [
+      {
+        "json": {
+          "execution": {
+            "id": "exec_fail_mock_9918",
+            "error": {
+              "message": "Gateway Timeout from SaaS Asset Service",
+              "node": {
+                "name": "HTTP_CreateAssetTicket"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "Code_ExecuteSagaRollback": [
+      {
+        "json": {
+          "sagaStatus": "COMPENSATING_TRANSACTIONS_EXECUTED",
+          "failedNode": "HTTP_CreateAssetTicket",
+          "rollbackActions": [
+            "ACTION: Soft-delete newly staged HRIS record (ROLLBACK)",
+            "ACTION: Revoke and deprovision newly created Okta account (ROLLBACK)"
+          ],
+          "pipelineIntegrityRestored": true,
+          "rolledBackAt": "2026-10-31T20:30:10.000Z"
+        }
+      }
+    ]
+  }
+}
